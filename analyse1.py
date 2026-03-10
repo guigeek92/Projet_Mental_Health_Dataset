@@ -242,3 +242,22 @@ print(pentes_df.head(10))
 
 print("\nTop 10 pays avec la plus forte baisse :")
 print(pentes_df.tail(10))
+
+
+# =========================
+# Recap
+# =========================
+# Cette analyse etudie l'evolution des DALYs lies aux troubles mentaux.
+# Le script nettoie les donnees, calcule des statistiques descriptives,
+# mesure les correlations avec l'annee, compare plusieurs modeles de tendance
+# temporelle, puis visualise la dynamique globale et les 10 pays les plus eleves.
+# Une analyse des pentes par pays complete l'interpretation des trajectoires.
+
+# =========================
+# Conclusion
+# =========================
+# Les DALYs moyens montrent une tendance temporelle mesurable a l'echelle globale,
+# avec des differences notables entre pays. Le modele retenu fournit une tendance
+# utile pour projeter a court terme, mais les resultats restent descriptifs et
+# correlatifs. Pour aller plus loin, il faut integrer des facteurs explicatifs
+# externes (economiques, sociaux et sanitaires) afin d'ameliorer l'interpretation.

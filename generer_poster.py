@@ -351,6 +351,8 @@ def build_html(payload):
       <p>Compte rendu automatisé des scripts analyse1, analyse2 et analyse3 avec vocabulaire simplifié et focus sur la dépression.</p>
     </section>
 
+    <section id=\"key-figures\"></section>
+
     <div class=\"tabs\">
       <button class=\"tab-btn active\" data-panel=\"a1\">Analyse 1</button>
       <button class=\"tab-btn\" data-panel=\"a2\">Analyse 2</button>
@@ -380,6 +382,28 @@ def build_html(payload):
 
     function explainCard(title, lines) {{
       return `<div class=\"card\"><h3>${{title}}</h3>${{lines.map(l => `<p class=\"note\">• ${{l}}</p>`).join("")}}</div>`;
+    }}
+
+    function renderKeyFigures() {{
+      const a1 = DATA.analyse1;
+      const a2 = DATA.analyse2;
+      const a3 = DATA.analyse3;
+      const root = document.getElementById("key-figures");
+
+      const period = `${{a3.line.labels[0]}} - ${{a3.line.labels[a3.line.labels.length - 1]}}`;
+      root.innerHTML = `
+        <div class=\"card\" style=\"margin-bottom: 16px;\">
+          <h3>Chiffres clés</h3>
+          <div class=\"grid\" style=\"margin-bottom: 0;\">
+            ${{kpiCard("DALYs moyens (global)", fmt(a1.summary.moyenne_dalys))}}
+            ${{kpiCard("Meilleur modèle", a2.summary.best_model)}}
+            ${{kpiCard("R² meilleur modèle", fmt(a2.summary.best_r2))}}
+            ${{kpiCard("Corrélation H/F", fmt(a3.summary.corr_h_f))}}
+            ${{kpiCard("Écart F-M récent", fmt(a3.line.gap[a3.line.gap.length - 1]))}}
+            ${{kpiCard("Période analysée", period)}}
+          </div>
+        </div>
+      `;
     }}
 
     function renderA1() {{
@@ -587,6 +611,7 @@ def build_html(payload):
       }});
     }}
 
+    renderKeyFigures();
     renderA1();
     renderA2();
     renderA3();

@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "git-add-commit-push",
+			"type": "shell",
+			"command": "git add . && git commit -m \"Ajout fichiers generes poster et donnees\" && git push",
+			"isBackground": false
+		},
+		{
+			"label": "git-status-check",
+			"type": "shell",
+			"command": "git status",
+			"isBackground": false
+		}
+	]
+}

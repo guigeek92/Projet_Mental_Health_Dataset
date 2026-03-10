@@ -288,6 +288,15 @@ print("Graphique enregistré : importance_variables_random_forest.png")
 # # Visualisation des moyennes annuelles
 # # moyennes_annuelles = df.groupby('Year')[colonnes].mean().sort_index()
 
+# =========================
+# Recap
+# =========================
+# Cette analyse explore les liens entre plusieurs troubles mentaux et
+# construit un modele de prediction de la prevalence de la depression.
+# Le script calcule une matrice de correlation, etabli une baseline lineaire,
+# compare plusieurs modeles, realise un tuning RandomForest, puis analyse les
+# erreurs et l'importance des variables pour identifier les facteurs dominants.
+
 
 # =========================
 # Conclusion (rapport)

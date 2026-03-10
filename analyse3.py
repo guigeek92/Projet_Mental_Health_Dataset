@@ -239,6 +239,16 @@ print("Graphique enregistré : donnees_brutes/doc_analyse3/importance_variables_
 
 
 # =========================
+# Recap
+# =========================
+# Cette analyse se concentre sur la depression par sexe (hommes/femmes).
+# Elle inclut le nettoyage des donnees, la correlation des variables, une
+# prediction de la prevalence feminine, la comparaison de modeles, un tuning
+# RandomForest, puis un diagnostic d'erreurs et une mesure d'importance des
+# variables explicatives.
+
+
+# =========================
 # Conclusion (commentaire)
 # =========================
 # Cette analyse suit la même méthode que analyse2.py mais sur un dataset
