@@ -1,56 +1,99 @@
-# Import des librairies utiles
+
+# =========================
+# ANALYSE DE LA PREVALENCE DES TROUBLES MENTAUX ET DE LA DEPRESSION
+# =========================
+# Ce script a pour but d'explorer les liens statistiques entre différents troubles mentaux
+# (dont la dépression) à partir de données de prévalence mondiales. Il propose une approche
+# progressive, de la simple corrélation linéaire à la modélisation prédictive, en expliquant
+# chaque étape de façon vulgarisée pour une compréhension accessible à tous.
+#
+# 1. On commence par charger les données et nettoyer les valeurs manquantes.
+# 2. On construit une matrice de corrélation linéaire (Pearson) pour voir quels troubles
+#    évoluent ensemble (ou pas) dans les pays/années.
+# 3. On développe ensuite un modèle pour prédire la prévalence de la dépression à partir
+#    des autres troubles, en comparant plusieurs approches.
+#
+# Toutes les étapes sont commentées pour expliquer le raisonnement et la méthode.
+# =========================
+
+
+# Import des librairies scientifiques (pandas pour les données, matplotlib pour les graphes, numpy pour les calculs, sklearn pour les modèles)
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Utilise un backend non interactif pour éviter les erreurs tkinter
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Mettre à True si tu veux ouvrir la fenêtre du graphique
+# Mettre à True pour afficher les graphiques à l'écran, False pour juste les sauvegarder
 AFFICHER_GRAPHIQUE = False
 
-# =========================
-# Objectif actuel :
-# Afficher uniquement la matrice de corrélation entre les différents troubles.
-# =========================
 
-# 1) Chargement et nettoyage simple
+# === 1) Chargement et nettoyage simple ===
+# On charge le fichier CSV contenant la prévalence de plusieurs troubles mentaux dans le monde.
+# Chaque ligne correspond à un pays et une année. On enlève les lignes incomplètes pour éviter
+# les biais ou erreurs dans les calculs statistiques.
 df = pd.read_csv('donnees_brutes/prevalence-by-mental-and-substance-use-disorder.csv')
 df = df.dropna()
 
 # 2) Colonnes des troubles à corréler
+
+
+# === 2) Colonnes des troubles à corréler ===
+# On sélectionne ici les colonnes du CSV qui correspondent à la prévalence (en %) de chaque trouble.
+# On inclut la dépression, la schizophrénie, le trouble bipolaire, les troubles alimentaires,
+# l'anxiété, les troubles liés à la drogue et à l'alcool. Ces colonnes sont choisies car elles
+# sont bien documentées et comparables dans le dataset.
 colonnes = [
-    "Prevalence - Bipolar disorder - Sex: Both - Age: Age-standardized (Percent)",
-    "Prevalence - Eating disorders - Sex: Both - Age: Age-standardized (Percent)",
-    "Prevalence - Anxiety disorders - Sex: Both - Age: Age-standardized (Percent)",
-    "Prevalence - Drug use disorders - Sex: Both - Age: Age-standardized (Percent)",
-    "Prevalence - Alcohol use disorders - Sex: Both - Age: Age-standardized (Percent)",
+    "Prevalence - Depressive disorders - Sex: Both - Age: Age-standardized (Percent)",  # Dépression
+    "Prevalence - Schizophrenia - Sex: Both - Age: Age-standardized (Percent)",         # Schizophrénie
+    "Prevalence - Bipolar disorder - Sex: Both - Age: Age-standardized (Percent)",     # Trouble bipolaire
+    "Prevalence - Eating disorders - Sex: Both - Age: Age-standardized (Percent)",     # Troubles alimentaires
+    "Prevalence - Anxiety disorders - Sex: Both - Age: Age-standardized (Percent)",    # Anxiété
+    "Prevalence - Drug use disorders - Sex: Both - Age: Age-standardized (Percent)",   # Usage de drogue
+    "Prevalence - Alcohol use disorders - Sex: Both - Age: Age-standardized (Percent)",# Usage d'alcool
 ]
 
+# Dictionnaire pour donner des noms courts et clairs aux troubles (pour les axes des graphes)
 noms_courts = {
-    colonnes[0]: "Bipolar",
-    colonnes[1]: "Eating",
-    colonnes[2]: "Anxiety",
-    colonnes[3]: "Drug use",
-    colonnes[4]: "Alcohol use",
+    colonnes[0]: "Depression",
+    colonnes[1]: "Schizophrenia",
+    colonnes[2]: "Bipolar",
+    colonnes[3]: "Eating",
+    colonnes[4]: "Anxiety",
+    colonnes[5]: "Drug use",
+    colonnes[6]: "Alcohol use",
 }
 
-# 3) Matrice de corrélation (trouble vs trouble)
+
+# === 3) Matrice de corrélation linéaire (Pearson) ===
+# On calcule ici la corrélation linéaire entre chaque paire de troubles.
+# La corrélation de Pearson mesure à quel point deux variables évoluent ensemble de façon linéaire :
+# - +1 = évoluent toujours ensemble (relation linéaire parfaite)
+# - 0 = pas de lien linéaire
+# - -1 = évoluent en sens opposé (relation linéaire inverse parfaite)
+#
+# Cela permet de repérer quels troubles sont souvent associés dans les pays/années.
 matrice_corr = df[colonnes].corr()
 matrice_corr.index = [noms_courts[c] for c in matrice_corr.index]
 matrice_corr.columns = [noms_courts[c] for c in matrice_corr.columns]
 
-print("\nMatrice de corrélation entre les troubles :")
+print("\nMatrice de corrélation linéaire (Pearson) entre les troubles :")
 print(matrice_corr)
 
-# 4) Heatmap (non bloquante en terminal)
+
+# === 4) Visualisation de la matrice de corrélation ===
+# On affiche la matrice sous forme de heatmap (carte de chaleur) pour mieux visualiser les liens.
+# Plus la couleur est rouge, plus la corrélation est forte (positive ou négative).
 if AFFICHER_GRAPHIQUE:
     plt.figure(figsize=(8, 6))
     plt.imshow(matrice_corr, cmap='coolwarm', vmin=-1, vmax=1)
     plt.colorbar(label='Corrélation')
     plt.xticks(range(len(matrice_corr.columns)), matrice_corr.columns, rotation=45, ha='right')
     plt.yticks(range(len(matrice_corr.index)), matrice_corr.index)
-    plt.title("Corrélation entre les troubles")
+    plt.title("Corrélation linéaire entre les troubles mentaux")
     plt.tight_layout()
     plt.show(block=False)
     plt.pause(2)
@@ -61,20 +104,29 @@ else:
     plt.colorbar(label='Corrélation')
     plt.xticks(range(len(matrice_corr.columns)), matrice_corr.columns, rotation=45, ha='right')
     plt.yticks(range(len(matrice_corr.index)), matrice_corr.index)
-    plt.title("Corrélation entre les troubles")
+    plt.title("Corrélation linéaire entre les troubles mentaux")
     plt.tight_layout()
     plt.savefig("matrice_correlation_troubles.png", dpi=150)
     plt.close()
     print("Heatmap enregistrée : matrice_correlation_troubles.png")
 
+
 # =========================
-# Étape 3 : Développement de solution (baseline)
+# Étape 3 : Développement de solution (baseline prédictive)
 # =========================
-# Problème : prédire la prévalence de la dépression.
+# Après avoir exploré les corrélations, on cherche à prédire la prévalence de la dépression
+# à partir des autres troubles et de l'année. On construit un jeu de variables explicatives (features)
+# et une variable cible (ce qu'on veut prédire).
+#
+# - col_cible : la colonne de la prévalence de la dépression (c'est la variable à prédire)
+# - features : les colonnes utilisées pour prédire (année + autres troubles)
+#
+# On ne met pas la dépression dans les features pour éviter de prédire une variable par elle-même !
 col_cible = "Prevalence - Depressive disorders - Sex: Both - Age: Age-standardized (Percent)"
 
+
+# On ne garde que les troubles comme variables explicatives (on retire l'année)
 features = [
-    "Year",
     "Prevalence - Schizophrenia - Sex: Both - Age: Age-standardized (Percent)",
     "Prevalence - Bipolar disorder - Sex: Both - Age: Age-standardized (Percent)",
     "Prevalence - Eating disorders - Sex: Both - Age: Age-standardized (Percent)",
@@ -83,16 +135,15 @@ features = [
     "Prevalence - Alcohol use disorders - Sex: Both - Age: Age-standardized (Percent)",
 ]
 
+
+# On crée un DataFrame pour le modèle avec uniquement les colonnes utiles (troubles et dépression)
 df_modele = df[features + [col_cible]].copy()
 
-# Split temporel simple : années <= 2013 en train, > 2013 en test
-# (évite la fuite d'information liée au temps)
-train_mask = df_modele["Year"] <= 2013
-
-X_train = df_modele.loc[train_mask, features]
-y_train = df_modele.loc[train_mask, col_cible]
-X_test = df_modele.loc[~train_mask, features]
-y_test = df_modele.loc[~train_mask, col_cible]
+# On mélange les données et on fait une simple séparation train/test (80/20) sans tenir compte du temps
+from sklearn.model_selection import train_test_split
+X = df_modele[features]
+y = df_modele[col_cible]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 modele = LinearRegression()
 modele.fit(X_train, y_train)
@@ -109,9 +160,19 @@ print(f"RMSE : {rmse:.4f}")
 print(f"R2   : {r2:.4f}")
 
 
+
 # =========================
-# Étape 4 : Quels modèles ?
+# Étape 4 : Comparaison de plusieurs modèles prédictifs
 # =========================
+# On compare ici plusieurs approches pour prédire la dépression :
+# - Régression linéaire : cherche une relation linéaire simple
+# - Ridge : régression linéaire avec régularisation (évite le surapprentissage)
+# - Forêt aléatoire (RandomForest) : modèle non linéaire, plus flexible
+#
+# On évalue chaque modèle avec trois métriques :
+# - MAE (erreur absolue moyenne)
+# - RMSE (racine de l'erreur quadratique moyenne)
+# - R2 (proportion de variance expliquée)
 modeles = {
     "LinearRegression": LinearRegression(),
     "Ridge_alpha_1": Ridge(alpha=1.0),
@@ -123,16 +184,52 @@ modeles = {
 }
 
 resultats = []
+
+import os
+output_dir = os.path.join("donnees_brutes", "doc_analyse2")
+os.makedirs(output_dir, exist_ok=True)
+
 for nom_modele, modele_test in modeles.items():
     modele_test.fit(X_train, y_train)
     y_pred_test = modele_test.predict(X_test)
 
+    # Ajout des résultats pour le tableau comparatif
     resultats.append({
         "Modele": nom_modele,
         "MAE": mean_absolute_error(y_test, y_pred_test),
         "RMSE": np.sqrt(mean_squared_error(y_test, y_pred_test)),
         "R2": r2_score(y_test, y_pred_test),
     })
+
+    # Graphique des erreurs (résidus)
+    residus = y_test - y_pred_test
+    plt.figure(figsize=(8, 4))
+    plt.hist(residus, bins=30, color='skyblue', edgecolor='black')
+    plt.title(f"Distribution des erreurs (résidus) - {nom_modele}")
+    plt.xlabel("Erreur (y réel - y prédit)")
+    plt.ylabel("Nombre de cas")
+    plt.tight_layout()
+    if AFFICHER_GRAPHIQUE:
+        plt.show(block=False)
+        plt.pause(2)
+    plt.savefig(os.path.join(output_dir, f"erreurs_{nom_modele}.png"), dpi=150)
+    plt.close()
+    print(f"Graphique enregistré : {os.path.join(output_dir, f'erreurs_{nom_modele}.png')}")
+
+    # Graphique des prédictions vs valeurs réelles
+    plt.figure(figsize=(6, 6))
+    plt.scatter(y_test, y_pred_test, alpha=0.6, color='darkorange', edgecolor='k')
+    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+    plt.xlabel("Valeur réelle (prévalence dépression)")
+    plt.ylabel("Valeur prédite")
+    plt.title(f"Prédiction vs Réel - {nom_modele}")
+    plt.tight_layout()
+    if AFFICHER_GRAPHIQUE:
+        plt.show(block=False)
+        plt.pause(2)
+    plt.savefig(os.path.join(output_dir, f"prediction_{nom_modele}.png"), dpi=150)
+    plt.close()
+    print(f"Graphique enregistré : {os.path.join(output_dir, f'prediction_{nom_modele}.png')}")
 
 resultats_df = pd.DataFrame(resultats).sort_values(by="RMSE")
 print("\n=== Étape 4 : comparaison des modèles ===")
@@ -180,6 +277,7 @@ for config in configurations_rf:
     })
 
 resultats_tuning_df = pd.DataFrame(resultats_tuning).sort_values(by="RMSE")
+
 print("\nRésultats du tuning RandomForest :")
 print(resultats_tuning_df.to_string(index=False))
 
@@ -195,6 +293,95 @@ print(
     f"RMSE={meilleure_config['RMSE']:.4f}, "
     f"R2={meilleure_config['R2']:.4f}"
 )
+
+# === Graphique comparatif des modèles (4 lignes, 3 colonnes) ===
+# On ajoute la meilleure config RandomForest (essai-erreur)
+# On affiche la table de comparaison avec le RMSE optimisé (essai-erreur)
+rf_essai_erreur = {
+    "Modele": "RandomForest (essai-erreur)",
+    "MAE": meilleure_config["MAE"],
+    "RMSE": meilleure_config["RMSE"],
+    "R2": meilleure_config["R2"],
+}
+
+# Table de comparaison affichée dans la console
+
+# Construction de la matrice de comparaison dans l'ordre souhaité
+table_affichage = resultats_df[resultats_df["Modele"].isin([
+    "LinearRegression", "Ridge_alpha_1", "RandomForest"
+])].copy()
+table_affichage = pd.concat([
+    table_affichage,
+    pd.DataFrame([rf_essai_erreur])
+], ignore_index=True)
+table_affichage["Modele"] = table_affichage["Modele"].replace({
+    "LinearRegression": "Régression linéaire",
+    "Ridge_alpha_1": "Ridge",
+    "RandomForest": "RandomForest",
+})
+ordre_modeles = [
+    "RandomForest (essai-erreur)",
+    "RandomForest",
+    "Régression linéaire",
+    "Ridge"
+]
+table_affichage = table_affichage.set_index("Modele").reindex(ordre_modeles)
+print("\n=== Matrice de comparaison des modèles ===")
+print(table_affichage[["MAE", "RMSE", "R2"]].to_string())
+
+# Affichage explicite de la matrice de comparaison des quatre modèles
+print("\nMatrice de comparaison (DataFrame) :")
+import tabulate
+print(tabulate.tabulate(table_affichage[["MAE", "RMSE", "R2"]], headers='keys', tablefmt='github'))
+
+# Générer une image de la matrice de comparaison (tableau)
+
+import matplotlib.pyplot as plt
+from matplotlib.table import Table
+
+fig, ax = plt.subplots(figsize=(7, 2))
+ax.axis('off')
+table_data = table_affichage[["MAE", "RMSE", "R2"]].reset_index()
+col_labels = list(table_data.columns)
+# Arrondir uniquement les colonnes numériques
+for col in ["MAE", "RMSE", "R2"]:
+    table_data[col] = table_data[col].round(6)
+cell_text = table_data.values.tolist()
+table = ax.table(cellText=cell_text, colLabels=col_labels, loc='center', cellLoc='center')
+table.auto_set_font_size(False)
+table.set_fontsize(10)
+table.scale(1.2, 1.5)
+plt.title("Matrice de comparaison des modèles", pad=20)
+plt.tight_layout()
+img_path = os.path.join(output_dir, "matrice_comparaison_modeles.png")
+plt.savefig(img_path, dpi=200, bbox_inches='tight')
+plt.close()
+print(f"Image de la matrice de comparaison enregistrée : {img_path}")
+
+# Pour le graphique, on garde l'ordre visuel souhaité
+
+# Pour le graphique, même ordre que la matrice
+ordre_graph = [
+    "RandomForest (essai-erreur)",
+    "RandomForest",
+    "Régression linéaire",
+    "Ridge"
+]
+comparaison_modeles = table_affichage.reindex(ordre_graph)
+
+ax = comparaison_modeles[["MAE", "RMSE", "R2"]].plot(kind="bar", figsize=(10, 6), width=0.75)
+ax.set_ylabel("Score")
+ax.set_title("Comparaison des modèles (test)")
+ax.set_xticklabels(comparaison_modeles.index, rotation=20, ha='right')
+plt.legend(title="Métrique")
+plt.tight_layout()
+comp_path = os.path.join(output_dir, "comparaison_modeles.png")
+plt.savefig(comp_path, dpi=150)
+if AFFICHER_GRAPHIQUE:
+    plt.show(block=False)
+    plt.pause(2)
+plt.close()
+print(f"Graphique comparatif enregistré : {comp_path}")
 
 
 # =========================
@@ -230,18 +417,25 @@ erreur_par_annee = df_erreurs.groupby("Year")["erreur_absolue"].mean().reset_ind
 print("\nErreur absolue moyenne par année (test) :")
 print(erreur_par_annee.to_string(index=False))
 
-plt.figure(figsize=(8, 5))
-plt.scatter(df_erreurs["y_reel"], df_erreurs["y_pred"], alpha=0.35)
-min_val = min(df_erreurs["y_reel"].min(), df_erreurs["y_pred"].min())
-max_val = max(df_erreurs["y_reel"].max(), df_erreurs["y_pred"].max())
-plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=1.5)
-plt.xlabel("Valeurs réelles (dépression)")
-plt.ylabel("Valeurs prédites")
-plt.title("Qualité prédictive : réel vs prédit")
+
+# (Optionnel) Visualisation de l'importance des variables explicatives (troubles)
+importances = pd.DataFrame({
+    "Feature": features,
+    "Importance": modele_final.feature_importances_,
+}).sort_values(by="Importance", ascending=False)
+
+print("\nImportance des troubles pour expliquer la prévalence de la dépression :")
+print(importances.to_string(index=False))
+
+plt.figure(figsize=(10, 5))
+plt.bar(importances["Feature"], importances["Importance"], color="orange")
+plt.xticks(rotation=60, ha='right')
+plt.ylabel("Importance (RandomForest)")
+plt.title("Quels troubles expliquent le mieux la dépression ?")
 plt.tight_layout()
-plt.savefig("qualite_predictive_reel_vs_predit.png", dpi=150)
+plt.savefig("importance_troubles_depression.png", dpi=150)
 plt.close()
-print("Graphique enregistré : qualite_predictive_reel_vs_predit.png")
+print("Graphique enregistré : importance_troubles_depression.png")
 
 
 # =========================
@@ -266,36 +460,6 @@ plt.close()
 print("Graphique enregistré : importance_variables_random_forest.png")
 
 
-# =========================
-# Anciennes analyses (désactivées pour l'instant)
-# =========================
-# print(df.head())
-# print(df.info())
-# print(df.isna().sum())
-#
-# # Corrélation complète sur toutes les colonnes numériques
-# # df_numerique = df.select_dtypes(include='number')
-# # print(df_numerique.corr())
-#
-# # Statistiques descriptives
-# # for col in colonnes:
-# #     print(col, df[col].mean(), df[col].median())
-#
-# # Corrélation Year vs trouble
-# # for col in colonnes:
-# #     print(df[['Year', col]].corr().iloc[0, 1])
-#
-# # Visualisation des moyennes annuelles
-# # moyennes_annuelles = df.groupby('Year')[colonnes].mean().sort_index()
-
-# =========================
-# Recap
-# =========================
-# Cette analyse explore les liens entre plusieurs troubles mentaux et
-# construit un modele de prediction de la prevalence de la depression.
-# Le script calcule une matrice de correlation, etabli une baseline lineaire,
-# compare plusieurs modeles, realise un tuning RandomForest, puis analyse les
-# erreurs et l'importance des variables pour identifier les facteurs dominants.
 
 
 # =========================
