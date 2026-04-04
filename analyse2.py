@@ -37,8 +37,32 @@ AFFICHER_GRAPHIQUE = False
 # les biais ou erreurs dans les calculs statistiques.
 df = pd.read_csv('donnees_brutes/prevalence-by-mental-and-substance-use-disorder.csv')
 df = df.dropna()
+if 'Year' in df.columns:
+    df = df.drop(columns=['Year'])
 
 # 2) Colonnes des troubles à corréler
+# === Analyse et gestion des valeurs aberrantes ===
+# On vérifie les valeurs aberrantes (ex: négatives, >100, ou très éloignées des percentiles usuels)
+print("\nRésumé statistique des colonnes de prévalence :")
+print(df.describe(percentiles=[0.01, 0.25, 0.5, 0.75, 0.99]).T)
+
+# Détection des valeurs aberrantes
+cols_prevalence = [col for col in df.columns if "Prevalence" in col]
+anomalies = {}
+for col in cols_prevalence:
+    outliers = df[(df[col] < 0) | (df[col] > 100)]
+    if not outliers.empty:
+        anomalies[col] = outliers.shape[0]
+        print(f"Alerte: {outliers.shape[0]} valeurs aberrantes détectées dans '{col}' (valeurs <0 ou >100)")
+
+# Option: suppression des lignes avec valeurs aberrantes
+if anomalies:
+    print("Suppression des lignes contenant des valeurs aberrantes...")
+    for col in anomalies:
+        df = df[(df[col] >= 0) & (df[col] <= 100)]
+    print(f"Nouvelles dimensions du dataset: {df.shape}")
+else:
+    print("Aucune valeur aberrante détectée dans les colonnes de prévalence.")
 
 
 # === 2) Colonnes des troubles à corréler ===
@@ -145,6 +169,17 @@ X = df_modele[features]
 y = df_modele[col_cible]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+print("\n--- Analyse complémentaire : comparaison des distributions y_test vs y (cross-validation) ---")
+import seaborn as sns
+plt.figure(figsize=(8,4))
+sns.kdeplot(y, label="y (ensemble complet)", color="blue")
+sns.kdeplot(y_test, label="y_test (split)", color="orange")
+plt.title("Distribution de la variable cible : ensemble complet vs test")
+plt.legend()
+plt.tight_layout()
+plt.savefig("distribution_y_vs_ytest.png", dpi=150)
+plt.close()
+print("Graphique enregistré : distribution_y_vs_ytest.png")
 modele = LinearRegression()
 modele.fit(X_train, y_train)
 y_pred = modele.predict(X_test)
@@ -159,6 +194,39 @@ print(f"MAE  : {mae:.4f}")
 print(f"RMSE : {rmse:.4f}")
 print(f"R2   : {r2:.4f}")
 
+
+# --- Analyse complémentaire : variance des scores de cross-validation ---
+from sklearn.model_selection import cross_val_score
+print("\n--- Analyse complémentaire : variance des scores de cross-validation (RandomForest, 10 runs) ---")
+cv_scores = []
+for seed in range(10):
+    rf = RandomForestRegressor(n_estimators=300, random_state=seed, n_jobs=-1)
+    scores = cross_val_score(rf, X, y, cv=5, scoring="r2")
+    cv_scores.append(scores)
+cv_scores = np.array(cv_scores)
+print(f"R2 CV (moyenne sur 10 runs) : moyenne={cv_scores.mean():.4f}, écart-type={cv_scores.std():.4f}, min={cv_scores.min():.4f}, max={cv_scores.max():.4f}")
+
+# --- Analyse complémentaire : valeurs extrêmes dans y_test ---
+print("\n--- Analyse complémentaire : valeurs extrêmes dans y_test ---")
+print(f"y_test min : {y_test.min():.4f}, max : {y_test.max():.4f}")
+print(f"y min : {y.min():.4f}, max : {y.max():.4f}")
+q01, q99 = np.percentile(y, [1, 99])
+print(f"y (1er percentile) : {q01:.4f}, y (99e percentile) : {q99:.4f}")
+print(f"y_test < y 1% : {(y_test < q01).sum()} valeurs, y_test > y 99% : {(y_test > q99).sum()} valeurs")
+
+# --- Analyse complémentaire : scores sur plusieurs splits aléatoires ---
+from sklearn.utils import shuffle
+print("\n--- Analyse complémentaire : scores sur plusieurs splits aléatoires ---")
+from sklearn.ensemble import RandomForestRegressor
+scores_test = []
+for seed in range(10):
+    X_shuf, y_shuf = shuffle(X, y, random_state=seed)
+    X_tr, X_te, y_tr, y_te = train_test_split(X_shuf, y_shuf, test_size=0.2, random_state=seed)
+    rf = RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1)
+    rf.fit(X_tr, y_tr)
+    y_pred_te = rf.predict(X_te)
+    scores_test.append(r2_score(y_te, y_pred_te))
+print(f"R2 sur 10 splits aléatoires : moyenne={np.mean(scores_test):.4f}, écart-type={np.std(scores_test):.4f}, min={np.min(scores_test):.4f}, max={np.max(scores_test):.4f}")
 
 
 # =========================
@@ -279,7 +347,7 @@ for config in configurations_rf:
 resultats_tuning_df = pd.DataFrame(resultats_tuning).sort_values(by="RMSE")
 
 print("\nRésultats du tuning RandomForest :")
-print(resultats_tuning_df.to_string(index=False))
+print(resultats_tuning_df.replace({np.nan: 'None'}).to_string(index=False))
 
 meilleure_config = resultats_tuning_df.iloc[0]
 print("\nMeilleure configuration RandomForest :")
@@ -329,10 +397,9 @@ table_affichage = table_affichage.set_index("Modele").reindex(ordre_modeles)
 print("\n=== Matrice de comparaison des modèles ===")
 print(table_affichage[["MAE", "RMSE", "R2"]].to_string())
 
-# Affichage explicite de la matrice de comparaison des quatre modèles
+# Affichage explicite de la matrice de comparaison des quatre modèles (texte simple)
 print("\nMatrice de comparaison (DataFrame) :")
-import tabulate
-print(tabulate.tabulate(table_affichage[["MAE", "RMSE", "R2"]], headers='keys', tablefmt='github'))
+print(table_affichage[["MAE", "RMSE", "R2"]])
 
 # Générer une image de la matrice de comparaison (tableau)
 
@@ -357,6 +424,47 @@ img_path = os.path.join(output_dir, "matrice_comparaison_modeles.png")
 plt.savefig(img_path, dpi=200, bbox_inches='tight')
 plt.close()
 print(f"Image de la matrice de comparaison enregistrée : {img_path}")
+
+# Générer les graphiques d'erreur et de prédiction pour le modèle RandomForest (essai-erreur)
+modele_rf_opt = RandomForestRegressor(
+    n_estimators=int(meilleure_config["n_estimators"]),
+    max_depth=None if pd.isna(meilleure_config["max_depth"]) else int(meilleure_config["max_depth"]),
+    min_samples_leaf=int(meilleure_config["min_samples_leaf"]),
+    random_state=42,
+    n_jobs=-1,
+)
+modele_rf_opt.fit(X_train, y_train)
+y_pred_rf_opt = modele_rf_opt.predict(X_test)
+residus_rf_opt = y_test - y_pred_rf_opt
+
+# Graphique des erreurs (résidus)
+plt.figure(figsize=(8, 4))
+plt.hist(residus_rf_opt, bins=30, color='skyblue', edgecolor='black')
+plt.title("Distribution des erreurs (résidus) - RandomForest (essai-erreur)")
+plt.xlabel("Erreur (y réel - y prédit)")
+plt.ylabel("Nombre de cas")
+plt.tight_layout()
+if AFFICHER_GRAPHIQUE:
+    plt.show(block=False)
+    plt.pause(2)
+plt.savefig(os.path.join(output_dir, "erreurs_RandomForest_essai_erreur.png"), dpi=150)
+plt.close()
+print(f"Graphique enregistré : {os.path.join(output_dir, 'erreurs_RandomForest_essai_erreur.png')}")
+
+# Graphique des prédictions vs valeurs réelles
+plt.figure(figsize=(6, 6))
+plt.scatter(y_test, y_pred_rf_opt, alpha=0.6, color='darkorange', edgecolor='k')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+plt.xlabel("Valeur réelle (prévalence dépression)")
+plt.ylabel("Valeur prédite")
+plt.title("Prédiction vs Réel - RandomForest (essai-erreur)")
+plt.tight_layout()
+if AFFICHER_GRAPHIQUE:
+    plt.show(block=False)
+    plt.pause(2)
+plt.savefig(os.path.join(output_dir, "prediction_RandomForest_essai_erreur.png"), dpi=150)
+plt.close()
+print(f"Graphique enregistré : {os.path.join(output_dir, 'prediction_RandomForest_essai_erreur.png')}")
 
 # Pour le graphique, on garde l'ordre visuel souhaité
 
@@ -398,8 +506,121 @@ modele_final.fit(X_train, y_train)
 y_pred_final = modele_final.predict(X_test)
 residus = y_test - y_pred_final
 
+# =========================
+# Étape 6 : Qualité prédictive (diagnostic)
+# =========================
+from sklearn.model_selection import cross_val_score
+modele_final = RandomForestRegressor(
+    n_estimators=int(meilleure_config["n_estimators"]),
+    max_depth=None if pd.isna(meilleure_config["max_depth"]) else int(meilleure_config["max_depth"]),
+    min_samples_leaf=int(meilleure_config["min_samples_leaf"]),
+    random_state=42,
+    n_jobs=-1,
+)
+modele_final.fit(X_train, y_train)
+y_pred_final = modele_final.predict(X_test)
+residus = y_test - y_pred_final
+
+# Cross-validation obligatoire
+
+# --- Explication de la cross-validation ---
+print('\nLa cross-validation (validation croisée) consiste à diviser les données en plusieurs sous-ensembles ("folds").')
+print("Le modèle est entraîné sur une partie des données et testé sur la partie restante, et cela est répété pour chaque fold.")
+print("Cela permet d'obtenir une estimation plus robuste de la performance du modèle et de limiter le surapprentissage.")
+
+scores_cv = cross_val_score(modele_final, X, y, cv=5, scoring="r2")
+print("\n=== Cross-validation (5-fold, R2) ===")
+for i, score in enumerate(scores_cv, 1):
+    print(f"Fold {i} : R2 = {score:.4f}")
+print(f"Moyenne R2 : {scores_cv.mean():.4f} | Écart-type : {scores_cv.std():.4f}")
+if scores_cv.mean() > 0.95:
+    print("Un score aussi élevé peut indiquer une forte structure des données ou un risque de surapprentissage.")
+
+# --- Graphe des scores de cross-validation ---
+plt.figure(figsize=(7, 4))
+plt.bar(range(1, len(scores_cv)+1), scores_cv, color='royalblue', edgecolor='black')
+plt.axhline(scores_cv.mean(), color='red', linestyle='--', label=f'Moyenne R2 = {scores_cv.mean():.3f}')
+plt.xlabel('Fold')
+plt.ylabel('Score R2')
+plt.title('Scores de cross-validation (R2) par fold')
+plt.ylim(0, 1)
+plt.legend()
+plt.tight_layout()
+cv_path = os.path.join(output_dir, "cross_validation_r2.png")
+plt.savefig(cv_path, dpi=150)
+plt.close()
+print(f"Graphique de cross-validation enregistré : {cv_path}")
+
+# =========================
+# Graphique comparatif : cross-validation avant/après optimisation
+# =========================
+from sklearn.model_selection import cross_val_score
+# Cross-validation avec le modèle "de base"
+scores_cv_base = cross_val_score(modele_final, X, y, cv=5, scoring="r2")
+# Cross-validation avec le modèle optimisé
+scores_cv_opt = cross_val_score(grid.best_estimator_, X, y, cv=5, scoring="r2")
+
+plt.figure(figsize=(8, 5))
+bar_width = 0.35
+index = np.arange(1, 6)
+plt.bar(index - bar_width/2, scores_cv_base, bar_width, label="Avant optimisation", color="#1f77b4")
+plt.bar(index + bar_width/2, scores_cv_opt, bar_width, label="Après optimisation", color="#ff7f0e")
+plt.axhline(np.mean(scores_cv_base), color="#1f77b4", linestyle="--", label=f"Moyenne avant = {np.mean(scores_cv_base):.3f}")
+plt.axhline(np.mean(scores_cv_opt), color="#ff7f0e", linestyle="--", label=f"Moyenne après = {np.mean(scores_cv_opt):.3f}")
+plt.xlabel("Fold")
+plt.ylabel("Score R2")
+plt.title("Comparaison des scores de cross-validation (R2)\nAvant vs Après optimisation des hyperparamètres")
+plt.xticks(index)
+plt.ylim(0, 1)
+plt.legend()
+plt.tight_layout()
+comp_cv_path = os.path.join(output_dir, "comparaison_crossval_avant_apres_optim.png")
+plt.savefig(comp_cv_path, dpi=150)
+plt.close()
+print(f"Graphique comparatif cross-validation enregistré : {comp_cv_path}")
+
+# =========================
+# Étape bonus : Optimisation automatique des hyperparamètres (GridSearchCV)
+# =========================
+from sklearn.model_selection import GridSearchCV
+print("\n=== Optimisation automatique des hyperparamètres (GridSearchCV) ===")
+param_grid = {
+    'n_estimators': [100, 200, 300],
+    'max_depth': [None, 8, 12],
+    'min_samples_leaf': [1, 2, 4],
+}
+grid = GridSearchCV(
+    RandomForestRegressor(random_state=42, n_jobs=-1),
+    param_grid,
+    cv=5,
+    scoring='r2',
+    n_jobs=-1
+)
+grid.fit(X, y)
+print(f"Meilleurs hyperparamètres trouvés : {grid.best_params_}")
+print(f"Meilleur score moyen de cross-validation (R2) : {grid.best_score_:.4f}")
+
+# Réentraînement du modèle final avec les meilleurs paramètres
+modele_optimise = RandomForestRegressor(**grid.best_params_, random_state=42, n_jobs=-1)
+modele_optimise.fit(X_train, y_train)
+y_pred_optimise = modele_optimise.predict(X_test)
+mae_opt = mean_absolute_error(y_test, y_pred_optimise)
+rmse_opt = np.sqrt(mean_squared_error(y_test, y_pred_optimise))
+r2_opt = r2_score(y_test, y_pred_optimise)
+print("\n=== Résultats sur le test avec le modèle optimisé ===")
+print(f"MAE  : {mae_opt:.4f}")
+print(f"RMSE : {rmse_opt:.4f}")
+print(f"R2   : {r2_opt:.4f}")
+
+"""
+On inclut la dépression, la schizophrénie, le trouble bipolaire, les troubles alimentaires,
+l'anxiété, les troubles liés à la drogue et à l'alcool.
+Les variables ont été choisies car elles sont directement liées aux troubles mentaux étudiés.
+Elles sont bien documentées et comparables dans le dataset.
+"""
+
 df_erreurs = pd.DataFrame({
-    "Year": X_test["Year"].values,
+   
     "y_reel": y_test.values,
     "y_pred": y_pred_final,
     "erreur": residus.values,
@@ -412,10 +633,6 @@ print(f"Écart-type des résidus      : {df_erreurs['erreur'].std():.4f}")
 
 print("\nTop 10 plus grosses erreurs absolues :")
 print(df_erreurs.sort_values(by="erreur_absolue", ascending=False).head(10).to_string(index=False))
-
-erreur_par_annee = df_erreurs.groupby("Year")["erreur_absolue"].mean().reset_index()
-print("\nErreur absolue moyenne par année (test) :")
-print(erreur_par_annee.to_string(index=False))
 
 
 # (Optionnel) Visualisation de l'importance des variables explicatives (troubles)
@@ -463,13 +680,22 @@ print("Graphique enregistré : importance_variables_random_forest.png")
 
 
 # =========================
-# Conclusion (rapport)
+
+
 # =========================
-# Dans ce projet, nous avons analysé un dataset panel (pays × années, 1990–2019)
-# sur la prévalence de plusieurs troubles mentaux et liés aux substances.
-# La matrice de corrélation montre des liens positifs modérés à forts entre
-# plusieurs troubles, notamment entre bipolarité et troubles alimentaires,
-# ainsi qu’entre troubles alimentaires et usage de drogues.
+# Analyse supplémentaire : impact du retrait d'une variable explicative
+# =========================
+print("\n=== Analyse supplémentaire : impact du retrait d'une variable ===")
+features_minus_one = features[:-1]  # On enlève la dernière variable (usage d'alcool)
+X_minus = df_modele[features_minus_one]
+scores_minus = cross_val_score(RandomForestRegressor(
+    n_estimators=int(meilleure_config["n_estimators"]),
+    max_depth=None if pd.isna(meilleure_config["max_depth"]) else int(meilleure_config["max_depth"]),
+    min_samples_leaf=int(meilleure_config["min_samples_leaf"]),
+    random_state=42,
+    n_jobs=-1,
+), X_minus, y, cv=5, scoring="r2")
+print(f"Sans la variable '{features[-1]}', moyenne R2 : {scores_minus.mean():.4f} (écart-type : {scores_minus.std():.4f})")
 #
 # Le problème prédictif retenu est une régression supervisée : prédire la
 # prévalence des troubles dépressifs à partir de l’année et des autres troubles.
